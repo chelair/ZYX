@@ -1,0 +1,84 @@
+[
+  {
+    "name": "a_Fe2O3_0701",
+    "path": "/data/gpfs03/mdye/projects/HS/a_Fe2O3_0701",
+    "subs": [
+      {
+        "name": "结构优化-110面",
+        "dir": "opt/Fe2O3_110",
+        "status": "Completed"
+      },
+      {
+        "name": "结构优化-104面",
+        "dir": "opt/Fe2O3_104",
+        "status": "Completed"
+      },
+      {
+        "name": "结构优化-异戊二烯",
+        "dir": "opt/C5H8",
+        "status": "Completed"
+      },
+      {
+        "name": "吸附-HCHO@110-Fe",
+        "dir": "abs/110_CH2O",
+        "status": "Run"
+      },
+      {
+        "name": "吸附-HCHO@104-Fe",
+        "dir": "abs/104_CH2O",
+        "status": "Run"
+      },
+      {
+        "name": "吸附-O3@Fe",
+        "dir": "abs/110_O3",
+        "status": "Pending"
+      },
+      {
+        "name": "吸附-O3@OH",
+        "dir": "abs/104_O3",
+        "status": "Failed"
+      },
+      {
+        "name": "吸附-异戊二烯-C=C1",
+        "dir": "abs/isoprene_c1",
+        "status": "Pending"
+      },
+      {
+        "name": "吸附-异戊二烯-C=C2",
+        "dir": "abs/isoprene_c2",
+        "status": "Pending"
+      },
+      {
+        "name": "吸附-异戊二烯+H2Ox1",
+        "dir": "abs/isoprene_w1",
+        "status": "Pending"
+      },
+      {
+        "name": "吸附-异戊二烯+H2Ox2",
+        "dir": "abs/isoprene_w2",
+        "status": "Pending"
+      },
+      {
+        "name": "吸附-HCHO+H2Ox1",
+        "dir": "abs/hcho_w1",
+        "status": "Pending"
+      },
+      {
+        "name": "吸附-HCHO+H2Ox2",
+        "dir": "abs/hcho_w2",
+        "status": "Pending"
+      },
+      {
+        "name": "自由能-路径1-羟基",
+        "dir": "freediag/path1",
+        "status": "Pending"
+      },
+      {
+        "name": "自由能-路径2-单线态氧",
+        "dir": "freediag/path2",
+        "status": "Pending"
+      }
+    ],
+    "deadline": "2026-07-01"
+  }
+]
