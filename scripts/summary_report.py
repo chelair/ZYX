@@ -72,7 +72,7 @@ def build_results_from_projects(projects=None):
     results = []
     icons = {
         "Run": "[Run] 运行中", "Completed": "[OK] 已完成",
-        "Failed": "[X] 失败", "Pending": "[~] 待提交", "Stop": "[W] 待接续",
+        "Failed": "[X] 失败", "Error": "[X] 已报错", "Pending": "[~] 待提交", "Stop": "[W] 待接续",
     }
     for proj in projects:
         for sub in proj.get("subs", []):
