@@ -21,12 +21,12 @@
       {
         "name": "吸附-HCHO@110-Fe",
         "dir": "abs/110_CH2O",
-        "status": "Run"
+        "status": "Stop"
       },
       {
         "name": "吸附-HCHO@104-Fe",
         "dir": "abs/104_CH2O",
-        "status": "Run"
+        "status": "Stop"
       },
       {
         "name": "吸附-O3@Fe",
@@ -77,8 +77,89 @@
         "name": "自由能-路径2-单线态氧",
         "dir": "freediag/path2",
         "status": "Pending"
+      },
+      {
+        "name": "吸附-110_CH_1",
+        "dir": "abs/110_CH_1",
+        "status": "Run"
       }
     ],
     "deadline": "2026-07-01"
+  },
+  {
+    "name": "Co4N_0703",
+    "path": "/data/gpfs03/mdye/projects/HS/Co4N_0703",
+    "subs": [
+      {
+        "name": "结构优化-模型1",
+        "dir": "opt/model1",
+        "status": "Stop"
+      },
+      {
+        "name": "结构优化-模型2",
+        "dir": "opt/model2",
+        "status": "Stop"
+      },
+      {
+        "name": "S8还原-模型1",
+        "dir": "s8/model1",
+        "status": "Stop"
+      },
+      {
+        "name": "S8还原-模型2-Co位点",
+        "dir": "s8/model2",
+        "status": "Stop"
+      },
+      {
+        "name": "Li2S分解能垒-模型1",
+        "dir": "barrier/model1",
+        "status": "Stop"
+      },
+      {
+        "name": "Li2S分解能垒-模型2",
+        "dir": "barrier/model2",
+        "status": "Stop"
+      },
+      {
+        "name": "DOS/PDOS-模型1",
+        "dir": "dos/model1",
+        "status": "Stop"
+      },
+      {
+        "name": "DOS/PDOS-模型2",
+        "dir": "dos/model2",
+        "status": "Stop"
+      },
+      {
+        "name": "差分+bader-模型1",
+        "dir": "bader/model1",
+        "status": "Stop"
+      },
+      {
+        "name": "差分+bader-模型2",
+        "dir": "bader/model2",
+        "status": "Stop"
+      },
+      {
+        "name": "吸附-1_1",
+        "dir": "abs/1_1",
+        "status": "Completed"
+      },
+      {
+        "name": "吸附-2_1",
+        "dir": "abs/2_1",
+        "status": "Stop"
+      },
+      {
+        "name": "结构优化-1",
+        "dir": "opt/1",
+        "status": "Completed"
+      },
+      {
+        "name": "结构优化-2",
+        "dir": "opt/2",
+        "status": "Completed"
+      }
+    ]
   }
 ]
