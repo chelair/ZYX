@@ -445,300 +445,85 @@ def classify_dir(rel_path):
 
 
 def cmd_scan(args):
-
-    """SSH 扫描项目目录，自动发现并注册新子任务"""
-
     try:
-
         import paramiko
-
     except ImportError:
-
         print("[X] 需要 paramiko，运行: pip install paramiko")
-
         return
-
-
 
     projects = load_projects()
-
     proj = get_project(projects, args.project)
-
     if not proj:
-
         print(f"[X] 未找到项目: {args.project}")
-
         return
-
-
 
     base_path = proj["path"]
-
     existing_dirs = {s["dir"] for s in proj.get("subs", [])}
 
-
-
     print(f"[扫描] {proj['name']}  ({base_path})")
-
     print(f"[扫描] SSH {args.host} ...")
 
-
-
-    # SSH 连接
-
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-
     from ssh_connect import parse_host, create_ssh_client
 
-
-
     username, hostname = parse_host(args.host)
-
     key_path = os.path.expanduser(args.key)
-
     client = create_ssh_client(hostname, args.port, username,
-
                                 key_path, None, args.timeout)
-
     if client is None:
-
         return
 
-
-
     try:
-
-        # 列出所有二级子目录 (maxdepth 2: 分类目录/具体任务)
-
         cmd = f"find {base_path} -maxdepth 2 -type d | sort"
-
         stdin, stdout, stderr = client.exec_command(cmd)
-
         remote_dirs = stdout.read().decode().strip().split()
-
         err = stderr.read().decode().strip()
 
-
-
         if err:
-
             print(f"  [!] 扫描错误: {err}")
-
-
-
-        new_subs = []
-
-        for d in remote_dirs:
-
-            rel = d.replace(base_path, "").strip("/")
-
-            if not rel or "/" not in rel:
-
-                # 只处理二级目录 (如 opt/model1, abs/2_1)
-
-                continue
-
-
-
-            if rel in existing_dirs:
-
-                continue
-
-
-
-            name, status = classify_dir(rel)
-
-            if name is None:
-
-                continue
-
-
-
-            # 检查是否有 OUTCAR → 自动设为 Run
-
-            stdin2, stdout2, _ = client.exec_command(f"test -f {d}/OUTCAR && echo Y || echo N")
-
-            has_outcar = stdout2.read().decode().strip()
-
-            if has_outcar == "Y":
-
-                status = "Run"
-
-
-
-            new_subs.append({"name": name, "dir": rel, "status": status})
-
-            print(f"  [+] {rel:25s} → {name:20s}  [{status}]")
-
-
-
-        if not new_subs:
-
-            print("  (没有发现新子目录)")
-
             return
 
+        new_subs = []
+        for d in remote_dirs:
+            if not d.startswith(base_path):
+                continue
+            rel = d[len(base_path):].strip("/")
+            if not rel or "/" not in rel:
+                continue
+            if rel in existing_dirs:
+                continue
 
+            name, status = classify_dir(rel)
+            if name is None:
+                continue
 
-        # 加入项目数据库
+            stdin2, stdout2, _ = client.exec_command(
+                f'test -f "{d}/OUTCAR" && echo Y || echo N')
+            has_outcar = stdout2.read().decode().strip()
+            if has_outcar == "Y":
+                stdin3, stdout3, _ = client.exec_command(
+                    f'tail -20 "{d}/OUTCAR" 2>/dev/null | grep -c "Voluntary context switches"')
+                vcs = stdout3.read().decode().strip()
+                if vcs == "0":
+                    status = "Run"
+                else:
+                    status = "Stop"
+
+            new_subs.append({"name": name, "dir": rel, "status": status})
+            print(f"  [+] {rel:25s} → {name:20s}  [{status}]")
+
+        if not new_subs:
+            print("  (没有发现新子目录)")
+            return
 
         proj.setdefault("subs", []).extend(new_subs)
-
         save_projects(projects)
-
         print(f"  [OK] 已添加 {len(new_subs)} 个子任务")
-
         print("  运行 vasp_check.py 开始检查 Run 状态的任务")
 
-
-
     finally:
-
         client.close()
-
         print("  连接已断开")
 
 
-
-
-
-# ── 入口 ──
-
-
-
-def main():
-
-    parser = argparse.ArgumentParser(description="VASP 项目管理")
-
-    sub = parser.add_subparsers(dest="command", required=True)
-
-
-
-    # list / show / scan
-
-    sub.add_parser("list", help="列出所有项目")
-
-    sub.add_parser("show", help="查看详细表格")
-
-
-
-    p_scan = sub.add_parser("scan", help="SSH 扫描项目目录，自动分类并注册子任务")
-
-    p_scan.add_argument("project", help="项目名称")
-
-    p_scan.add_argument("--host", default="mdye@hpc.xmu.edu.cn", help="SSH 用户名@地址")
-
-    p_scan.add_argument("--port", type=int, default=22)
-
-    p_scan.add_argument("--key", default=str(Path.home() / ".ssh" / "id_rsa"))
-
-    p_scan.add_argument("--timeout", type=int, default=15)
-
-
-
-    # add / remove
-
-    p_add = sub.add_parser("add", help="添加项目")
-
-    p_add.add_argument("name")
-
-    p_add.add_argument("path")
-
-
-
-    p_rm = sub.add_parser("remove", help="删除项目")
-
-    p_rm.add_argument("name")
-
-
-
-    # sub commands
-
-    p_sub = sub.add_parser("sub", help="管理子任务")
-
-    p_sub_sub = p_sub.add_subparsers(dest="sub_command", required=True)
-
-
-
-    p_sa = p_sub_sub.add_parser("add", help="添加子任务")
-
-    p_sa.add_argument("project")
-
-    p_sa.add_argument("name", help="子任务名称，如 结构优化")
-
-    p_sa.add_argument("dir", help="服务器上的子目录名，如 relax")
-
-
-
-    p_sr = p_sub_sub.add_parser("remove", help="删除子任务")
-
-    p_sr.add_argument("project")
-
-    p_sr.add_argument("name")
-
-
-
-    p_ss = p_sub_sub.add_parser("status", help="修改子任务状态")
-
-    p_ss.add_argument("project")
-
-    p_ss.add_argument("name")
-
-    p_ss.add_argument("status", choices=["Pending", "Run", "Stop", "Completed", "Failed"])
-
-
-
-    p_sl = p_sub_sub.add_parser("list", help="列出子任务")
-
-    p_sl.add_argument("project")
-
-
-
-    args = parser.parse_args()
-
-
-
-    if args.command == "list":
-
-        cmd_list(args)
-
-    elif args.command == "show":
-
-        cmd_show(args)
-
-    elif args.command == "scan":
-
-        cmd_scan(args)
-
-    elif args.command == "add":
-
-        cmd_add(args)
-
-    elif args.command == "remove":
-
-        cmd_remove(args)
-
-    elif args.command == "sub":
-
-        handlers = {
-
-            "add": cmd_sub_add,
-
-            "remove": cmd_sub_remove,
-
-            "status": cmd_sub_status,
-
-            "list": cmd_sub_list,
-
-        }
-
-        handlers[args.sub_command](args)
-
-
-
-
-
-if __name__ == "__main__":
-
-    main()
 

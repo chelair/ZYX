@@ -59,13 +59,23 @@ def create_ssh_client(hostname, port, username, key_path, password, timeout):
         client.connect(hostname, port=port, username=username,
                        password=password, timeout=timeout)
     elif os.path.exists(key_path):
-        key = paramiko.RSAKey.from_private_key_file(key_path)
+        try:
+            key = paramiko.RSAKey.from_private_key_file(key_path)
+        except paramiko.SSHException:
+            key = paramiko.Ed25519Key.from_private_key_file(key_path)
         client.connect(hostname, port=port, username=username,
                        pkey=key, timeout=timeout)
     else:
-        print(f"⚠ 密钥文件不存在: {key_path}")
-        print("请先配置 SSH 密钥，或用 --password 指定密码")
-        return None
+        ed_path = str(Path.home() / ".ssh" / "id_ed25519")
+        if os.path.exists(ed_path):
+            key = paramiko.Ed25519Key.from_private_key_file(ed_path)
+            client.connect(hostname, port=port, username=username,
+                           pkey=key, timeout=timeout)
+        else:
+            print(f"⚠ 密钥文件不存在: {key_path}")
+            print(f"   也未找到: {ed_path}")
+            print("请先配置 SSH 密钥，或用 --password 指定密码")
+            return None
     return client
 
 
@@ -104,24 +114,21 @@ def main():
         client.close()
         sys.exit(1)
 
-    print("\n 连接保持中，输入 'exit' 断开")
+    print(" 连接保持中，输入 exit 断开 (真实 ssh 终端, 支持 cd)")
+    import subprocess as _sp
+    ssh_cmd = ["ssh", "-p", str(args.port), "-o", "StrictHostKeyChecking=no"]
+    if os.path.exists(key_path):
+        ssh_cmd += ["-i", key_path]
+    else:
+        ed_path = str(Path.home() / ".ssh" / "id_ed25519")
+        if os.path.exists(ed_path):
+            ssh_cmd += ["-i", ed_path]
+    ssh_cmd.append(args.host)
     try:
-        while True:
-            cmd = input("$ ").strip()
-            if cmd.lower() in ("exit", "quit"):
-                break
-            if cmd:
-                stdin, stdout, stderr = client.exec_command(cmd)
-                print(stdout.read().decode().strip())
-                err = stderr.read().decode().strip()
-                if err:
-                    print(f"⚠ {err}")
-    except (EOFError, KeyboardInterrupt):
-        pass
+        _sp.run(ssh_cmd)
     finally:
         client.close()
         print("连接已断开")
-
 
 if __name__ == "__main__":
     main()

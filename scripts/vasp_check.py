@@ -37,6 +37,22 @@ from ssh_connect import parse_host, create_ssh_client, check_remote_dir
 
 DOWNLOAD_FILES = ["POSCAR", "CONTCAR"]
 
+LOCAL_BASE = Path("D:/Tech-data/poscars/HS")
+
+
+def _count_ionic_steps_remote(client, remote_dir):
+    """SSH 远程读取 OUTCAR 中的 ionic step 数
+    统计 "free  energy   TOTEN  =" 出现次数
+    """
+    try:
+        stdin, stdout, _ = client.exec_command(
+            f'grep -c "free  energy   TOTEN  =" {remote_dir}/OUTCAR 2>/dev/null || echo 0'
+        )
+        result = stdout.read().decode().strip()
+        return int(result) if result.isdigit() else 0
+    except Exception:
+        return 0
+
 SKILL_DIR = Path(__file__).resolve().parent.parent
 
 PROJECTS_FILE = SKILL_DIR / "vaspcheck_projects.json"
@@ -175,7 +191,10 @@ def check_outcar(client, remote_dir):
 
     type_tag = {2: "结构优化", 3: "NEB", -1: "SCF"}
 
-    calc_type = type_tag.get(int(ibrion_val)) if ibrion_val else ""
+    try:
+        calc_type = type_tag.get(int(ibrion_val)) if ibrion_val and ibrion_val.lstrip("-").isdigit() else ""
+    except ValueError:
+        calc_type = ""
 
     if status == "CONVERGED":
 
@@ -245,7 +264,7 @@ def check_subtask(client, project, subtask):
 
     remote_dir = f"{base_path}/{sub_dir}"
 
-    local_dir = Path("D:/Tech-data/poscars/HS") / proj_name / sub_name
+    local_dir = LOCAL_BASE / proj_name / sub_name
 
     print(f"\n{'='*60}")
 
@@ -279,7 +298,7 @@ def check_subtask(client, project, subtask):
 
         stdin, stdout, stderr = client.exec_command(
 
-            f"ls -d {remote_dir}/con*/ 2>/dev/null | sort -t'n' -k2 -n"
+            f"ls -d {remote_dir}/con[0-9]*/ 2>/dev/null | sort -t'n' -k2 -n"
 
         )
 
@@ -328,6 +347,10 @@ def check_subtask(client, project, subtask):
         print(f"   [!] OUTCAR 不存在")
 
         conv_status = "无OUTCAR"
+
+    # 远程读取 ionic step 数（用于判断 CONTCAR 是否有意义）
+    ionic_steps = _count_ionic_steps_remote(client, work_dir)
+    (local_dir / ".ionic_steps").write_text(str(ionic_steps), encoding="utf-8")
 
     # 自动状态转换：Pending → Run（发现OUTCAR）/ 保持Pending（无文件）
 

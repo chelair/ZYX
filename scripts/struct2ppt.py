@@ -30,15 +30,28 @@ def _png_size(path):
 
 
 def _render_one(struct_path, output_dir, zoom=1.7):
+    """VESTA CLI render with adaptive backoff (1.0s, 1.5s, 2.5s)"""
     struct_path = Path(struct_path)
     output_dir = Path(output_dir)
     base = output_dir / "_v_base.vesta"
-    subprocess.Popen([VESTA_EXE, "-open", str(struct_path), "-save", str(base), "-close", ""],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(1.0)
+
     subprocess.run(["taskkill", "/IM", "VESTA.exe", "/F"], capture_output=True)
-    if not base.exists():
+
+    base_ok = False
+    for attempt, wait in enumerate([1.0, 1.5, 2.5]):
+        subprocess.Popen(
+            [VESTA_EXE, "-open", str(struct_path), "-save", str(base), "-close", ""],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        time.sleep(wait)
+        subprocess.run(["taskkill", "/IM", "VESTA.exe", "/F"], capture_output=True)
+        if base.exists():
+            base_ok = True
+            break
+        print("  [retry {}] base.vesta ({}s)".format(attempt + 1, wait))
+    if not base_ok:
         return {}
+
     content = base.read_text(encoding="utf-8")
     content = content.replace("PROJT 0  0.962", "PROJT 0  {:.3f}".format(zoom))
     i = content.find("LORIENT\n")
@@ -46,6 +59,7 @@ def _render_one(struct_path, output_dir, zoom=1.7):
     e2 = content.find("\n", e1) + 1
     e3 = content.find("\n", e2) + 1
     e4 = content.find("\n", e3) + 1
+
     result = {}
     for axis, (v1, v2) in AXIS_VIEWS.items():
         r1 = " {:.6f}  {:.6f}  {:.6f}  0.000000  0.000000  0.000000\n".format(*v1)
@@ -54,15 +68,41 @@ def _render_one(struct_path, output_dir, zoom=1.7):
         vf = output_dir / "_v_{}_{}.vesta".format(axis, struct_path.stem)
         vf.write_text(cc, encoding="utf-8")
         pf = output_dir / "_v_{}_{}.png".format(axis, struct_path.stem)
-        subprocess.Popen([VESTA_EXE, "-open", str(vf), "-export_img", str(pf), "-close", str(vf)],
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(1.0)
-        subprocess.run(["taskkill", "/IM", "VESTA.exe", "/F"], capture_output=True)
-        if pf.exists():
-            result[axis] = pf
+
+        ok = False
+        for attempt, wait in enumerate([1.0, 1.5, 2.5]):
+            subprocess.Popen(
+                [VESTA_EXE, "-open", str(vf), "-export_img", str(pf), "-close", str(vf)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            time.sleep(wait)
+            subprocess.run(["taskkill", "/IM", "VESTA.exe", "/F"], capture_output=True)
+            if pf.exists():
+                ok = True
+                result[axis] = pf
+                break
+            print("  [retry {}] {} axis export ({}s)".format(attempt + 1, axis, wait))
         vf.unlink()
+
     base.unlink()
     return result
+
+
+
+
+def _count_ionic_steps(poscar_dir):
+    """读取 .ionic_steps 文件（由 vasp_check 在远程 SSH 检查时写入）
+    如果文件不存在（直接运行 struct2ppt），则返回 999 表示“不限制”
+    """
+    f = Path(poscar_dir) / ".ionic_steps"
+    if not f.exists():
+        return 999  # 没有约束，默认渲染
+    try:
+        v = int(f.read_text(encoding="utf-8").strip())
+        return v
+    except (ValueError, OSError):
+        return 999
+
 
 
 def add_structure_slides(prs, poscar_dir, zoom=1.7):
@@ -77,7 +117,12 @@ def add_structure_slides(prs, poscar_dir, zoom=1.7):
     out_dir = poscar_dir.parent.parent
 
     pos = _render_one(poscar_f, out_dir, zoom) if poscar_f.exists() else {}
-    con = _render_one(contcar_f, out_dir, zoom) if contcar_f.exists() else {}
+    # 仅当离子步≥5时才渲染 CONTCAR，否则只显示 POSCAR
+    ionic_steps = _count_ionic_steps(poscar_dir)
+    render_contcar = contcar_f.exists() and ionic_steps >= 1
+    if contcar_f.exists() and not render_contcar:
+        print("  [Skip CONTCAR] only {} ionic steps (<5)".format(ionic_steps))
+    con = _render_one(contcar_f, out_dir, zoom) if render_contcar else {}
 
     if not pos and not con:
         print("  [!] render failed")

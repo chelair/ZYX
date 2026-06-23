@@ -42,8 +42,8 @@ def load_projects():
 def match_project(cwd, projects):
     for proj in projects:
         proj_path = proj["path"]
-        if proj_path in cwd:
-            rel = cwd.replace(proj_path, "").strip("/")
+        if cwd.startswith(proj_path):
+            rel = cwd[len(proj_path):].strip("/")
             for sub in proj.get("subs", []):
                 if sub["dir"] in rel or rel == sub["dir"]:
                     return proj["name"], sub["name"], sub["dir"]
@@ -53,45 +53,34 @@ def match_project(cwd, projects):
     return "—", "—", ""
 
 
-def parse_bjobs_l(text):
-    HOME = "/data/gpfs03/mdye"
-    lines = []
-    for line in text.split("\n"):
-        stripped = line.strip()
-        if stripped and not re.match(r"(Job <|Submitted|Started|Execution|Resource|MEMORY|SCHEDULING|\d+ Task|RUNLIMIT|HOST:|PGIDs|PIDs|MEM:|MAX MEM|r15s|loadSched|loadStop|Combined:|Effective:|--)", stripped) and lines and not lines[-1].endswith(">"):
-            if line[:1] in (" ", "\t") or not re.match(r"^[A-Z]", stripped):
-                lines[-1] += stripped
-                continue
-        lines.append(stripped)
-    flat = "\n".join(lines)
-    flat = flat.replace("$HOME", HOME)
+def parse_bjobs_o(text):
+    """解析 bjobs -o 结构化输出 (每行一个作业, 空格分隔)"""
+    import shlex
     jobs = []
-    for block in re.split(r"\n(?=Job <)", flat):
-        if not block.startswith("Job <"):
+    for line in text.strip().split("\n"):
+        line = line.strip()
+        if not line:
             continue
-        j = {}
-        m = re.search(r"Job <(\d+)>", block)
-        if m: j["id"] = m.group(1)
-        m = re.search(r"Status <(\w+)>", block)
-        if m: j["status"] = m.group(1)
-        m = re.search(r"Queue <([^>]+)>", block)
-        if m: j["queue"] = m.group(1)
-        m = re.search(r"User <([^>]+)>", block)
-        if m: j["user"] = m.group(1)
-        m = re.search(r"(\d+) Task\(s\)", block)
-        if m: j["cores"] = int(m.group(1))
-        m = re.search(r"Execution CWD <([^>]+)>", block)
-        if m: j["exec_cwd"] = m.group(1)
-        m = re.search(r"CWD <([^>]+)>", block)
-        if m: j["cwd"] = m.group(1)
-        m = re.search(r"Job Name <([^>]+)>", block)
-        if m: j["name"] = m.group(1)
-        m_ts = re.search(r"(\w{3}\s+\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})", block)
-        if m_ts: j["submit_time"] = m_ts.group(1)
+        parts = line.split()
+        if len(parts) < 5:
+            continue
+        j = {
+            "id": parts[0],
+            "status": parts[1],
+            "queue": parts[2],
+            "user": parts[3],
+            "cores": int(parts[4]) if parts[4].isdigit() else 0,
+            "exec_cwd": parts[5] if len(parts) > 5 else "",
+            "name": parts[6] if len(parts) > 6 else "",
+        }
+        # exec_cwd may contain spaces; join remaining parts
+        if len(parts) > 7:
+            j["exec_cwd"] = " ".join(parts[5:-1] if len(parts) > 7 else parts[5:])
         jobs.append(j)
     return jobs
 
-
+def parse_bjobs_l(text):
+    """fallback: 解析 bjobs -l (保留作为兼容)"""
 def status_icon(status):
     icons = {
         "RUN":   "[Run] 运行中", "PEND":  "[P] 排队中", "SSUSP": "[S] 挂起",
@@ -192,7 +181,7 @@ def print_node_status(bh_out):
     node_info = {}
     for line in bh_out.strip().split("\n"):
         parts = line.split()
-        if len(parts) >= 7 and (parts[0].startswith("hd") or parts[0].startswith("s") or parts[0].startswith("b")):
+        if len(parts) >= 7 and parts[0][:2].isalnum():
             node_info[parts[0]] = {"status": parts[1], "max": parts[3], "nrun": parts[5]}
     for qname, start, end, prefix in NODE_GROUPS:
         total = ok = busy = down = max_slots = used_slots = 0
@@ -242,10 +231,10 @@ def main():
     print(f"[连接] {username}@{hostname}")
 
     try:
-        # ── bjobs -l ──
-        stdin, stdout, stderr = client.exec_command("bjobs -l 2>&1")
+        # ── bjobs -o ──
+        stdin, stdout, stderr = client.exec_command('bjobs -noheader -o "jobid stat queue user slots exec_cwd job_name submit_time" 2>&1')
         raw = stdout.read().decode("utf-8", errors="replace")
-        jobs = parse_bjobs_l(raw)
+        jobs = parse_bjobs_o(raw)
         if not jobs:
             print("\n(未找到运行中的作业)")
         else:
