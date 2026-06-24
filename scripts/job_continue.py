@@ -114,6 +114,36 @@ def classify_fix_type(subtask_name, subtask_dir):
     return "slab", 0.40  # 默认 slab
 
 
+
+def _calc_dipol_center(client, poscar_path):
+    """SSH 读取 POSCAR，计算 z 几何中心
+    Returns: (z_center, z_min, z_max) 或 (None, None, None)
+    """
+    try:
+        stdin, stdout, _ = client.exec_command(f"cat {poscar_path}")
+        poscar_lines = stdout.read().decode().split("\n")
+        zvals = []
+        in_coords = False
+        for line in poscar_lines:
+            s = line.strip()
+            if s.lower() in ("direct", "cartesian", "selective dynamics"):
+                in_coords = True
+                continue
+            if in_coords:
+                parts = s.split()
+                if len(parts) >= 3:
+                    try:
+                        zvals.append(float(parts[2]))
+                    except ValueError:
+                        pass
+        if not zvals:
+            return None, None, None
+        zmin = min(zvals)
+        zmax = max(zvals)
+        zcenter = round((zmin + zmax) / 2, 2)
+        return zcenter, zmin, zmax
+    except Exception:
+        return None, None, None
 def needs_dipole(subtask_name, subtask_dir):
     """判断是否需要偶极矫正（仅吸附类需要）"""
     name_lower = (subtask_name + " " + subtask_dir).lower()
@@ -145,7 +175,10 @@ def check_contcar_integrity(client, remote_dir):
     cmd = (
         f'cd "{remote_dir}" && '
         f'if [ ! -f CONTCAR ]; then echo "NO_CONTCAR"; exit; fi && '
-        f'n_atoms=$(tail -1 POSCAR 2>/dev/null) && '
+        # Get atom counts: if line 6 is element symbols, use line 7
+        f'line6=$(sed -n "6p" POSCAR 2>/dev/null) && '
+        f'if echo "$line6" | grep -qE "^[[:space:]]*[0-9]"; then '
+        f'  n_atoms="$line6"; else n_atoms=$(sed -n "7p" POSCAR 2>/dev/null); fi && '
         f'c_lines=$(grep -c "" CONTCAR 2>/dev/null) && '
         f'tail -3 CONTCAR | cat && '
         f'echo "---ATOMS=$n_atoms---" && '
@@ -218,7 +251,7 @@ def find_work_dir(client, base_dir):
       work_dir: 实际工作的远程路径
       latest_con_num: int, 0 表示原始目录
     """
-    cmd = f'ls -d "{base_dir}"/con[0-9]*/ 2>/dev/null | sort -t\'/\' -k2 -t\'n\' -k2 -n'
+    cmd = f'ls -d "{base_dir}"/con[0-9]*/ 2>/dev/null | sort -V'
     stdin, stdout, _ = client.exec_command(cmd)
     con_dirs = stdout.read().decode().strip().split()
 
@@ -237,7 +270,7 @@ def find_next_con_number(client, base_dir):
     Returns:
       int N
     """
-    cmd = f'ls -d "{base_dir}"/con[0-9]*/ 2>/dev/null | sort -t\'/\' -k2 -t\'n\' -k2 -n'
+    cmd = f'ls -d "{base_dir}"/con[0-9]*/ 2>/dev/null | sort -V'
     stdin, stdout, _ = client.exec_command(cmd)
     con_dirs = stdout.read().decode().strip().split()
 
@@ -543,12 +576,12 @@ def main():
                 remote_modify_incar_line(client, f"{con_path}/INCAR", "LDIPOL", ".TRUE.")
                 remote_modify_incar_line(client, f"{con_path}/INCAR", "IDIPOL", "3")
                 print("  [OK] LDIPOL=.TRUE. IDIPOL=3 已写入")
-                print("  [!] DIPOL z 中心请手动计算")
-
-        # ── 13. 队列推荐 ──
-        print()
-        print("-" * 60)
-        print("  [9/10] 队列选择")
+                zc, zmin, zmax = _calc_dipol_center(client, f"{con_path}/POSCAR")
+                if zc is not None:
+                    remote_modify_incar_line(client, f"{con_path}/INCAR", "DIPOL", f"0.5 0.5 {zc}")
+                    print(f"  [OK] DIPOL = 0.5 0.5 {zc} (z_min={zmin}, z_max={zmax})")
+                else:
+                    print("  [!] DIPOL z 中心自动计算失败，请手动填入")
         print("-" * 60)
 
         is_neb = sub_dir.startswith("neb/")

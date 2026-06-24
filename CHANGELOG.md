@@ -1,3 +1,13 @@
+## v4.0.1 — 续算流程修复与完善
+
+### Bug 修复
+- **CONTCAR 解析**：`tail -1 POSCAR` 遇到 Selective Dynamics 时获取错误行 → 改用 sed 按行号 + 自动判断元素行/数量行
+- **sort 崩溃**：`sort -t'/' -k2 -t'n' -k2 -n` 双重 `-t` 导致 `incompatible tabs` → 改为 `sort -V`
+- **struct2ppt**：<5 ionic steps 时跳过整个结构渲染，不再渲染无意义的单独 POSCAR
+
+### 新功能
+- **DIPOL 自动计算**：新增 `_calc_dipol_center()`，SSH 解析 POSCAR z 坐标，自动填入 `DIPOL = 0.5 0.5 {z_center}`
+
 # Changelog
 
 ## v4.0 — 架构重构，代码质量全面升级
