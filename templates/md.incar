@@ -1,0 +1,49 @@
+! ================= 分子动力学 / AIMD INCAR =================
+! Nose-Hoover 恒温 NVT 系综
+!
+! 参数理解与判断说明：
+!
+! POTIM = 1.5    → 时间步长 1.5 fs。对于含 H 等轻原子的体系建议降至 1.0
+! NSW   = 2000   → 总步数。2000 × 1.5 fs = 3000 fs = 3 ps，可根据目标时长缩放
+! TEBEG = 3000   → 3000K 属于高温，常见于熔化/高温相变模拟
+! TEEND = 3000   → 若与 TEBEG 相同则为恒温运行；若需退火(降温)应设 TEEND < TEBEG
+! NBLOCK = 10    → 每 10 步输出一次离子位置到 XDATCAR
+! KBLOCK = 50    → 每 50 步输出一次动能/温度信息
+! NELMDL = -10   → 前 10 个电子步固定离子位置，让电荷密度充分收敛后再启动 MD
+!
+! 退火运行建议:
+!   若需退火模拟，将 TEEND 设为低于 TEBEG 的目标温度
+!   例: TEBEG=3000, TEEND=300  → 从 3000K 逐渐降温至 300K
+!   也可分多段: 先高温平衡 → 再降温
+
+ISTART  = 0
+ICHARG  = 2
+PREC    = Normal
+LWAVE   = .F.
+LCHARG  = .F.
+ENCUT   = 500
+EDIFF   = 1E-6
+LREAL   = Auto
+ISMEAR  = 0
+SIGMA   = 0.2
+NELM    = 100
+NELMIN  = 5
+ISPIN   = 2
+
+! AIMD 核心参数
+NSW     = 2000
+IBRION  = 0
+POTIM   = 1.5          ! 时间步长 (fs)，含轻原子用 1.0
+MDALGO  = 2            ! 2 = Nose-Hoover (NVT)
+SMASS   = 1            ! Nose 质量参数，1 为中等耦合
+
+! 温度控制
+TEBEG   = 3000         ! 起始温度 (K)
+TEEND   = 3000         ! 结束温度 (K)，退火时设为 TEEND < TEBEG
+
+! 输出频率
+NBLOCK  = 10           ! XDATCAR 输出间隔
+KBLOCK  = 50           ! 温度/能量输出间隔
+
+! 初始电子步
+NELMDL  = -10          ! 前 |NELMDL| 步固定离子
