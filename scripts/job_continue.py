@@ -13,7 +13,6 @@ VASP 续算 — 创建 conN/ 目录，接续未收敛作业
   - SKILL.md       命令一览 + 核心规则
 """
 import argparse
-import json
 import re
 import sys
 from datetime import datetime
@@ -28,7 +27,6 @@ HPC_PORT = 22
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 from ssh_manager import SSHManager
-from ssh_connect import parse_host
 from safe_ops import (
     safe_mkdir, safe_cp, safe_mv, safe_write_text,
     safe_upload_file, check_remote_exists, read_remote_job_info,

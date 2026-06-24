@@ -107,10 +107,10 @@ def add_structure_slides(prs, poscar_dir, zoom=1.7, title=None):
 
     pos = _render_one(poscar_f, out_dir, zoom) if poscar_f.exists() else {}
     ionic_steps = _read_ionic_steps(poscar_dir)
-    render_contcar = contcar_f.exists() and ionic_steps >= 1
-    if contcar_f.exists() and not render_contcar:
-        print("  [Skip CONTCAR] only {} ionic steps (<5)".format(ionic_steps))
-    con = _render_one(contcar_f, out_dir, zoom) if render_contcar else {}
+    if ionic_steps < 5:
+        print("  [Skip] only {} ionic steps (<5), no meaningful comparison".format(ionic_steps))
+        return
+    con = _render_one(contcar_f, out_dir, zoom) if contcar_f.exists() else {}
 
     if not pos and not con:
         print("  [!] render failed")

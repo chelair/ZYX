@@ -7,7 +7,6 @@ OUTCAR 分析 — 远程扫描 OUTCAR，判断收敛状态和 ionic 步数
   - count_ionic_steps: 统计 ionic 步数
 """
 import shlex
-from pathlib import Path
 
 # ──────────────────────────────────────────────
 #  data 预扫描（增强版）

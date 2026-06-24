@@ -17,8 +17,6 @@ SSH 连接管理器 — 共享 SSH 连接，避免重复创建
         client = mgr.get(hostname, port, username, key_path)
         # ...
 """
-import os
-from pathlib import Path
 from ssh_connect import create_ssh_client
 
 

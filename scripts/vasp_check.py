@@ -13,8 +13,6 @@ VASP 计算结果检查 — 编排层
   - file_transfer.py      SFTP 文件下载
 """
 import argparse
-import json
-import os
 import subprocess
 import sys
 from datetime import datetime

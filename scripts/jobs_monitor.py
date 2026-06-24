@@ -3,9 +3,6 @@
 LSF 作业监控 — SSH 运行 bjobs -l, blimits, bqueues, bhosts
 """
 import argparse
-import json
-import os
-import re
 import sys
 from config import SSH_KEY_DEFAULT
 from pathlib import Path
@@ -51,7 +48,6 @@ def match_project(cwd, projects):
 
 def parse_bjobs_o(text):
     """解析 bjobs -o 结构化输出 (每行一个作业, 空格分隔)"""
-    import shlex
     jobs = []
     for line in text.strip().split("\n"):
         line = line.strip()

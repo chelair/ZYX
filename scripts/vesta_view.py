@@ -3,8 +3,8 @@ VESTA 可视化 — 打开 POSCAR 和 CONTCAR 进行结构对比
 
 用法:
   python scripts/vesta_view.py <文件或目录>
-  python scripts/vesta_view.py {LOCAL_BASE}/Co4N_0703\abs\2_1
-  python scripts/vesta_view.py {LOCAL_BASE}/Co4N_0703\abs\2_1\CONTCAR
+  python scripts/vesta_view.py {LOCAL_BASE}/Co4N_0703/abs/2_1
+  python scripts/vesta_view.py {LOCAL_BASE}/Co4N_0703/abs/2_1/CONTCAR
 
 说明:
   1. 传入目录 → 自动找该目录下的 POSCAR 和 CONTCAR
@@ -12,7 +12,6 @@ VESTA 可视化 — 打开 POSCAR 和 CONTCAR 进行结构对比
   3. 有 CONTCAR 时会尝试叠加两个文件
 """
 import argparse
-import os
 import subprocess
 import sys
 import time

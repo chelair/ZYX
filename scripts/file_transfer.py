@@ -1,7 +1,6 @@
 """
 文件传输 — 通过 SFTP 下载/上传 VASP 结果文件
 """
-from pathlib import Path
 
 DOWNLOAD_FILES = ["POSCAR", "CONTCAR", "INCAR"]
 """默认下载的文件列表"""
