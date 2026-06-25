@@ -135,22 +135,30 @@ def check_subtask(client, project, subtask, data_cache=None):
     poscar_ok = download_file(sftp, f"{remote_dir}/POSCAR", local_dir / "POSCAR", "POSCAR")
     contcar_ok = download_file(sftp, f"{remote_dir}/CONTCAR", local_dir / "CONTCAR", "CONTCAR")
 
-    # 查找最新续算目录
+    # Look for continuation dirs that actually ran (have OUTCAR)
     work_dir = remote_dir
     try:
         stdin, stdout, stderr = client.exec_command(
-            f"ls -d {remote_dir}/con[0-9]*/ 2>/dev/null | sort -t'n' -k2 -n"
+            f"ls -d {remote_dir}/con[0-9]*/ 2>/dev/null | sort -V"
         )
-        con_dirs = stdout.read().decode().strip().split()
-        if con_dirs:
-            latest_con = con_dirs[-1].rstrip("/")
+        all_cons = stdout.read().decode().strip().split()
+        # Filter: only con dirs that have OUTCAR (actually ran)
+        ran_cons = []
+        for d in all_cons:
+            d = d.strip()
+            if not d:
+                continue
+            check_cmd = f"test -f {d}/OUTCAR && echo Y || echo N"
+            stdin2, stdout2, _ = client.exec_command(check_cmd)
+            if stdout2.read().decode().strip() == "Y":
+                ran_cons.append(d)
+        if ran_cons:
+            latest_con = ran_cons[-1].rstrip("/")
             work_dir = latest_con
             con_name = latest_con.rstrip("/").split("/")[-1]
-            print(f"\n 发现续算目录: {con_name}（共 {len(con_dirs)} 个续算），检查最新结果")
+            print(f"\n 发现续算目录: {con_name}（共 {len(all_cons)} 个续算，{len(ran_cons)} 个已跑）")
     except Exception:
         pass
-
-    # 检查 OUTCAR 收敛状态
     print(f"\n 检查 OUTCAR 收敛状态:")
     conv_status = ""
     energy = ""

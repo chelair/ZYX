@@ -623,6 +623,15 @@ def main():
             else:
                 print(f"  [X] cp -n {src_name} 失败: {err}")
                 copy_ok = False
+        # Fallback: if KPOINTS missing, try IBZKPT
+        if not check_remote_exists(client, f"{con_path}/KPOINTS", "file"):
+            for src_name in [f"{work_dir}/IBZKPT", f"{remote_base}/IBZKPT", f"{remote_base}/KPOINTS"]:
+                if check_remote_exists(client, src_name, "file"):
+                    ok, err = safe_cp(client, src_name, f"{con_path}/KPOINTS")
+                    if ok:
+                        print("  [OK] IBZKPT -> KPOINTS")
+                    break
+
 
         if not copy_ok:
             print("  [!] 部分文件复制失败，终止")
@@ -730,20 +739,14 @@ def main():
         for r in recs:
             dist_str = "+".join(str(x) for x in r["dist"])
             print(f"  {r['name']:<18} {r['nodes']:>4}  {dist_str:<14} {r['comm']:<20} {r['suspend_risk']:<8}")
-            print(f"  {'':<18}  {r['desc']}")
-
+        # P1: bhosts fixes queue selection
         selected_queue = args.queue
-        if not selected_queue and not args.dry_run:
-            try:
-                q_input = input(f"\n  选择队列 (默认 {recs[0]['name']}): ").strip()
-                selected_queue = q_input if q_input else recs[0]["name"]
-            except (EOFError, KeyboardInterrupt):
+        if not selected_queue:
+            if fitting:
+                selected_queue = fitting[0]["queue"]
+            else:
                 selected_queue = recs[0]["name"]
-                print(f"  使用默认队列: {selected_queue}")
-        elif not selected_queue:
-            selected_queue = recs[0]["name"]
-            print(f"\n  [DRY-RUN] 默认队列: {selected_queue}")
-
+            print("  队列: " + selected_queue)
         # ── 14. 生成提交文件 ──
         print()
         print("-" * 60)

@@ -186,71 +186,59 @@ def cmd_scan(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="ZYX VASP 工作流自动化 — 统一入口",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-示例:
-  python zyx.py workflow                    # 完整工作流
-  python zyx.py check a_Fe2O3_0701          # 检查指定项目
-  python zyx.py continue a_Fe2O3_0701 吸附  # 续算（先预览再确认）
-  python zyx.py report --theme dark         # 生成报告
-  python zyx.py diagnose a_Fe2O3_0701       # 诊断
-  python zyx.py projects                    # 查看项目
-        """
-    )
-    parser.add_argument("--yes", "-y", action="store_true",
-                        help="自动确认（跳过交互提示）")
-    parser.add_argument("--timeout", type=int, default=15,
-                        help="SSH 超时秒数")
-
-    sub = parser.add_subparsers(dest="command", help="子命令")
-
-    # check
-    p = sub.add_parser("check", help="检查任务状态")
-    p.add_argument("project", nargs="?", default=None)
-    p.add_argument("subtask", nargs="?", default=None)
-
-    # report
-    p = sub.add_parser("report", help="生成 PPT 报告")
-    p.add_argument("--theme", choices=["light", "dark"], default="dark")
-    p.add_argument("--no-struct", action="store_true", help="跳过结构图")
+    parser = argparse.ArgumentParser(description="ZYX VASP workflow")
+    sub = parser.add_subparsers(dest="command")
 
     # workflow
-    p = sub.add_parser("workflow", help="完整工作流")
+    p = sub.add_parser("workflow", help="Check -> Continue -> Report")
     p.add_argument("project", nargs="?", default=None)
-    p.add_argument("--theme", choices=["light", "dark"], default="dark")
+    p.add_argument("--theme", choices=["light","dark"], default="dark")
     p.add_argument("--no-struct", action="store_true")
-    p.add_argument("--force", action="store_true", help="check 失败仍继续")
+    p.add_argument("--force", action="store_true", help="Continue on check failure")
+    p.add_argument("--yes", "-y", action="store_true", help="Auto confirm")
+    p.add_argument("--timeout", type=int, default=15, help="SSH timeout")
+
+    # check
+    p = sub.add_parser("check", help="Check task status")
+    p.add_argument("project", nargs="?", default=None)
+    p.add_argument("subtask", nargs="?", default=None)
+    p.add_argument("--timeout", type=int, default=15)
+
+    # report
+    p = sub.add_parser("report", help="Generate PPT report")
+    p.add_argument("--theme", choices=["light","dark"], default="dark")
+    p.add_argument("--no-struct", action="store_true", help="Skip structure diagrams")
 
     # continue
-    p = sub.add_parser("continue", help="续算")
+    p = sub.add_parser("continue", help="Job continuation")
     p.add_argument("project")
     p.add_argument("subtask")
     p.add_argument("--queue", default=None)
     p.add_argument("--cores", type=int, default=None)
+    p.add_argument("--yes", "-y", action="store_true", help="Auto confirm + submit")
+    p.add_argument("--timeout", type=int, default=15)
 
     # diagnose
-    p = sub.add_parser("diagnose", help="异常诊断")
+    p = sub.add_parser("diagnose", help="Problem diagnosis")
     p.add_argument("project", nargs="?", default=None)
     p.add_argument("subtask", nargs="?", default=None)
+    p.add_argument("--timeout", type=int, default=15)
 
     # projects
-    sub.add_parser("projects", help="查看项目")
+    sub.add_parser("projects", help="List projects")
 
     # jobs
-    sub.add_parser("jobs", help="LSF 作业监控")
+    sub.add_parser("jobs", help="LSF job monitor")
 
     # scan
-    p = sub.add_parser("scan", help="扫描远程目录")
+    p = sub.add_parser("scan", help="Scan remote directories")
     p.add_argument("project")
+    p.add_argument("--timeout", type=int, default=15)
 
     args = parser.parse_args()
-
     if not args.command:
         parser.print_help()
         return
-
     dispatch = {
         "check": cmd_check,
         "report": cmd_report,
