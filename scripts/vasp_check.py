@@ -14,6 +14,7 @@ VASP 计算结果检查 — 编排层
 """
 import argparse
 import subprocess
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -320,6 +321,11 @@ def main():
         print("\n连接已断开")
 
     save_projects(projects)
+    # Save structured results for summary_report
+    results_path = DAILY_CHECK_DIR / ".check_results.json"
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(results_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, ensure_ascii=False, indent=2)
     if results:
         write_summary(results, DAILY_CHECK_DIR)
         print(f"\n 项目文件已更新（自动将已收敛子任务标记为 Completed）")

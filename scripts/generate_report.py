@@ -52,11 +52,13 @@ def main():
 
     report_args = [
         sys.executable, str(SCRIPTS_DIR / "summary_report.py"),
-        "--from-db", "--theme", args.theme,
+        "--from-db",
+        "--from-results", str(OUTPUT_DIR / "DailyCheck" / ".check_results.json"),
+        "--theme", args.theme,
+        "--theme", args.theme,
     ]
     if args.no_struct:
         report_args.append("--no-struct")
-
     subprocess.run(report_args)
 
     print()

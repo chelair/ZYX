@@ -58,7 +58,21 @@ def pad(text, width):
     return text + " " * max(0, width - text_width)
 
 
-def build_results_from_projects(projects=None):
+def build_results_from_projects(projects=None, results_file=None):
+    """Build results list from project DB, enriched with check results if available"""
+    if projects is None:
+        projects = load_projects()
+    # Load check results for enrichment
+    check_data = {}
+    if results_file:
+        try:
+            with open(results_file, "r", encoding="utf-8") as f:
+                check_results = json.load(f)
+            for r in check_results:
+                key = f"{r['proj']}|{r['sub']}"
+                check_data[key] = r
+        except Exception:
+            pass
     """从项目数据库构建 results 列表"""
     if projects is None:
         projects = load_projects()
@@ -354,6 +368,7 @@ def main():
     parser.add_argument("--data", default=None, help="JSON \u5b57\u7b26\u4e32")
     parser.add_argument("--file", default=None, help="JSON \u6587\u4ef6\u8def\u5f84")
     parser.add_argument("--from-db", action="store_true", help="\u4ece\u9879\u76ee\u6570\u636e\u5e93\u751f\u6210")
+    parser.add_argument("--from-results", default=None, help="\u4ece\u68c0\u67e5\u7ed3\u679cJSON\u751f\u6210\uff08\u4f18\u5148\u4e8e--from-db\uff09")
     parser.add_argument("-o", "--output", default=None, help="\u8f93\u51fa\u8def\u5f84")
     parser.add_argument("--theme", choices=["dark", "light"], default="light", help="PPT \u4e3b\u9898")
     parser.add_argument("--no-struct", action="store_true", help="\u4e0d\u6dfb\u52a0\u7ed3\u6784\u56fe")
