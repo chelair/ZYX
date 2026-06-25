@@ -10,6 +10,7 @@
 
 ⛔ 禁止在 safe_ops 之外执行任何远程写操作
 """
+import shlex
 from pathlib import Path
 
 
@@ -29,11 +30,11 @@ def check_remote_exists(client, remote_path, ftype="any"):
         True 存在, False 不存在
     """
     if ftype == "file":
-        cmd = f'test -f "{remote_path}" && echo Y || echo N'
+        cmd = f"test -f {shlex.quote(remote_path)} && echo Y || echo N"
     elif ftype == "dir":
-        cmd = f'test -d "{remote_path}" && echo Y || echo N'
+        cmd = f"test -d {shlex.quote(remote_path)} && echo Y || echo N"
     else:
-        cmd = f'test -e "{remote_path}" && echo Y || echo N'
+        cmd = f"test -e {shlex.quote(remote_path)} && echo Y || echo N"
 
     try:
         stdin, stdout, _ = client.exec_command(cmd)
@@ -58,7 +59,7 @@ def safe_mkdir(client, remote_dir):
         (True, "") 成功
         (False, "错误信息") 失败
     """
-    cmd = f'mkdir "{remote_dir}"'
+    cmd = f"mkdir {shlex.quote(remote_dir)}"
     try:
         stdin, stdout, stderr = client.exec_command(cmd)
         exit_code = stdout.channel.recv_exit_status()
@@ -87,7 +88,7 @@ def safe_cp(client, src, dst):
         (True, "") 成功
         (False, "错误信息") 失败
     """
-    cmd = f'cp -n "{src}" "{dst}"'
+    cmd = f"cp -n {shlex.quote(src)} {shlex.quote(dst)}"
     try:
         stdin, stdout, stderr = client.exec_command(cmd)
         exit_code = stdout.channel.recv_exit_status()
@@ -116,7 +117,7 @@ def safe_mv(client, src, dst):
         (True, "") 成功
         (False, "错误信息") 失败
     """
-    cmd = f'mv -n "{src}" "{dst}"'
+    cmd = f"mv -n {shlex.quote(src)} {shlex.quote(dst)}"
     try:
         stdin, stdout, stderr = client.exec_command(cmd)
         exit_code = stdout.channel.recv_exit_status()
@@ -301,7 +302,7 @@ def read_remote_job_info(client, remote_dir: str) -> dict:
     if not check_remote_exists(client, path, "file"):
         return {}
     try:
-        stdin, stdout, _ = client.exec_command(f'cat "{path}"')
+        stdin, stdout, _ = client.exec_command(f"cat {shlex.quote(path)}")
         text = stdout.read().decode("utf-8", errors="replace")
         return parse_job_info(text)
     except Exception:

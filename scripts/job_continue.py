@@ -220,35 +220,40 @@ def check_contcar_integrity(client, remote_dir):
 # ═══════════════════════════════════════════════
 
 def check_wavecar_ready(client, remote_dir):
-    """检查 OUTCAR 是否有完成标志 & WAVECAR 是否存在
+    """检查 OUTCAR 完成标志 & WAVECAR 状态
 
     Returns:
-      "ready"    — OUTCAR 有完成标志 + WAVECAR 存在 → 可 mv
-      "exists"   — WAVECAR 存在但 OUTCAR 未完成 → 不移动
+      "ready"    — has_flag+WAVECAR, OR Stop(walltime killed)+WAVECAR non-empty
+      "exists"   — WAVECAR 存在但不满足 mv 条件
       "missing"  — WAVECAR 不存在
     """
     cmd = (
         f'cd "{remote_dir}" && '
         f'has_flag=$(grep -c "General timing and accounting" OUTCAR 2>/dev/null || echo 0) && '
         f'has_wave=$(test -f WAVECAR && echo Y || echo N) && '
-        f'echo "FLAG=$has_flag WAVE=$has_wave"'
+        f'wave_size=$(stat -c%s WAVECAR 2>/dev/null || echo 0) && '
+        f'echo "FLAG=$has_flag WAVE=$has_wave SIZE=$wave_size"'
     )
     stdin, stdout, _ = client.exec_command(cmd)
     result = stdout.read().decode().strip()
 
-    m = re.search(r'FLAG=(\d+) WAVE=([YN])', result)
+    m = re.search(r'FLAG=(\d+) WAVE=([YN]) SIZE=(\d+)', result)
     if not m:
         return "missing"
 
     has_flag = int(m.group(1)) > 0
     has_wave = m.group(2) == "Y"
+    wave_size = int(m.group(3))
 
+    # Rule 1: OUTCAR has finish flag + WAVECAR exists
     if has_flag and has_wave:
         return "ready"
-    elif has_wave:
+    # Rule 2: Stop/walltime killed: WAVECAR exists and is non-empty
+    if not has_flag and has_wave and wave_size > 0:
+        return "ready"
+    if has_wave:
         return "exists"
-    else:
-        return "missing"
+    return "missing"
 
 
 # ═══════════════════════════════════════════════
