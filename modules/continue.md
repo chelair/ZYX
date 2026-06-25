@@ -115,7 +115,7 @@ python scripts/job_continue.py 项目 子任务 --queue ocean_530_1day --cores 4
 
 ## 已自动处理
 
-- KPOINTS 缺失 → 自动 cp IBZKPT → KPOINTS
+- KPOINTS 缺失 → 自动生成（读POSCAR晶格，Ni = ceil(20/Ai)，格式: 0/G/N1 N2 N3/0 0 0）
 - DIPOL → 自动 SSH 读 POSCAR 计算 z_center
 - conN 目录 → 自动排除 0 字节 CONTCAR 和待提交目录
 - JobName → 自动缩短至 ≤9 字符 [A-Za-z0-9_] 格式
