@@ -275,7 +275,7 @@ def find_work_dir(client, base_dir):
         d = d.strip()
         if not d:
             continue
-        check_cmd = f"test -f {d}/CONTCAR ; echo $?"
+        check_cmd = f"test -s {d}/CONTCAR ; echo $?"
         stdin2, stdout2, _ = client.exec_command(check_cmd)
         if stdout2.read().decode().strip() == "0":
             ran_dirs.append(d)
@@ -837,56 +837,56 @@ def main():
                 mgr.close_all()
                 return
 
-                if args.yes:
-                    print()
-                    print("-" * 60)
-                    print("  提交作业")
-                    print("-" * 60)
+            if args.yes:
+                print()
+                print("-" * 60)
+                print("  提交作业")
+                print("-" * 60)
 
-                    cmd = f'cd "{con_path}" && bsub < vasp.lsf'
-                    stdin, stdout, stderr = client.exec_command(cmd)
-                    bsub_out = stdout.read().decode().strip()
-                    bsub_err = stderr.read().decode().strip()
+                cmd = f'cd "{con_path}" && bsub < vasp.lsf'
+                stdin, stdout, stderr = client.exec_command(cmd)
+                bsub_out = stdout.read().decode().strip()
+                bsub_err = stderr.read().decode().strip()
 
-                    if bsub_err and "error" in bsub_err.lower():
-                        print(f"  [X] bsub 失败: {bsub_err}")
-                        return
+                if bsub_err and "error" in bsub_err.lower():
+                    print(f"  [X] bsub 失败: {bsub_err}")
+                    return
 
-                    print(f"  [OK] 提交结果: {bsub_out}")
+                print(f"  [OK] 提交结果: {bsub_out}")
 
-                    m = re.search(r'Job <(\d+)>', bsub_out)
-                    job_id = m.group(1) if m else ""
+                m = re.search(r'Job <(\d+)>', bsub_out)
+                job_id = m.group(1) if m else ""
 
-                    if job_id:
-                        print(f"  [OK] Job ID: {job_id}")
+                if job_id:
+                    print(f"  [OK] Job ID: {job_id}")
 
-                        updated_ji = job_info_content.replace(
-                            "status      = pending",
-                            "status      = submitted"
-                        )
-                        updated_ji = updated_ji.replace(
-                            "job_id      = ",
-                            f"job_id      = {job_id}"
-                        )
-                        remote_write_text(client, f"{con_path}/job.info", updated_ji)
-                        print(f"  [OK] job.info 已更新 (job_id={job_id}, status=submitted)")
+                    updated_ji = job_info_content.replace(
+                        "status      = pending",
+                        "status      = submitted"
+                    )
+                    updated_ji = updated_ji.replace(
+                        "job_id      = ",
+                        f"job_id      = {job_id}"
+                    )
+                    remote_write_text(client, f"{con_path}/job.info", updated_ji)
+                    print(f"  [OK] job.info 已更新 (job_id={job_id}, status=submitted)")
 
-                        sub["status"] = "Run"
-                        sub["job_id"] = job_id
-                        save_projects(projects)
-                        print(f"  [OK] JSON 已同步 → {args.project}/{args.subtask} = Run (job_id={job_id})")
-                    else:
-                        print(f"  [!] 无法解析 job_id")
-                        print(f"      原始输出: {bsub_out}")
-
-                    print()
-                    print("=" * 60)
-                    print("  续算完成")
-                    print("=" * 60)
+                    sub["status"] = "Run"
+                    sub["job_id"] = job_id
+                    save_projects(projects)
+                    print(f"  [OK] JSON 已同步 → {args.project}/{args.subtask} = Run (job_id={job_id})")
                 else:
-                    print()
-                    print("  [跳过] 未提交，文件已保存在服务器")
-                    print(f"  需手动提交: bsub < {con_path}/vasp.lsf")
+                    print(f"  [!] 无法解析 job_id")
+                    print(f"      原始输出: {bsub_out}")
+
+                print()
+                print("=" * 60)
+                print("  续算完成")
+                print("=" * 60)
+            else:
+                print()
+                print("  [跳过] 未提交，文件已保存在服务器")
+                print(f"  需手动提交: bsub < {con_path}/vasp.lsf")
 
     finally:
         mgr.close_all()

@@ -125,15 +125,16 @@ def cmd_workflow(args):
 
 
 def cmd_continue(args):
-    """续算：--dry-run 预览 → 确认 → 执行"""
-    # Step 1: dry-run
+    """续算：预览 → 确认 → 执行"""
     print("=" * 60)
-    print("  Step 1/2: 预览续算")
+    print("  续算预览" if args.dry_run else "  Step 1/2: 预览续算")
     print("=" * 60)
     result = _run("job_continue.py", args.project, args.subtask,
                   "--dry-run", "--timeout", str(args.timeout))
     if result.returncode != 0:
         print("[X] 预览失败，请检查错误信息")
+        return
+    if args.dry_run:
         return
 
     # Step 2: confirm and execute
@@ -217,6 +218,9 @@ def main():
     p.add_argument("--cores", type=int, default=None)
     p.add_argument("--yes", "-y", action="store_true", help="Auto confirm + submit")
     p.add_argument("--timeout", type=int, default=15)
+    p.add_argument("--dry-run", action="store_true", help="Preview only")
+    p.add_argument("--cores", type=int, default=None)
+    p.add_argument("--queue", default=None)
 
     # diagnose
     p = sub.add_parser("diagnose", help="Problem diagnosis")
