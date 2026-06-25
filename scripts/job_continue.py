@@ -730,16 +730,8 @@ def main():
 
 
         recs = recommend_queue(cores=cores, urgent=False, special_neb=is_neb)
-
-        print(f"  体系原子数: {atoms}")
-        print(f"  推荐核数: {cores}")
-        print(f"\n  可用队列（按优先级排序）:")
-        print(f"  {'队列':<18} {'节点':>4} {'分配':<14} {'损耗':<20} {'挂起风险':<8}")
-        print(f"  {'-'*70}")
-        for r in recs:
-            dist_str = "+".join(str(x) for x in r["dist"])
-            print(f"  {r['name']:<18} {r['nodes']:>4}  {dist_str:<14} {r['comm']:<20} {r['suspend_risk']:<8}")
-        # P1: bhosts fixes queue selection
+        print(f"  体系原子数: {atoms}, 推荐核数: {cores}")
+        # P1: bhosts fixes queue selection (bhosts shown above)
         selected_queue = args.queue
         if not selected_queue:
             if fitting:

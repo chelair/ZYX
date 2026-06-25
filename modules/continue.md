@@ -98,3 +98,31 @@ P2: 无合适队列时报告并建议调整核数或使用付费队列
 | LDIPOL | .TRUE.（仅吸附） |
 | IDIPOL | 3（仅吸附） |
 | DIPOL | 0.5 0.5 {z_center}（自动计算） |
+
+## 精确脚本调用
+
+```bash
+# 方式一：zyx 统一入口（推荐）
+python scripts/zyx.py continue 项目 子任务  --yes --queue charge --cores 24
+python scripts/zyx.py continue 项目 子任务  --dry-run  # 仅预览
+
+# 方式二：直接调用
+python scripts/job_continue.py 项目 子任务 --dry-run  # 预览
+python scripts/job_continue.py 项目 子任务 --yes --queue charge --cores 24  # 自动提交
+python scripts/job_continue.py 项目 子任务 --queue ocean_530_1day --cores 48 --no-submit  # 仅生成不提交
+```
+
+## bhosts 队列选择逻辑
+
+1. SSH bhosts，只取 STATUS=ok 的节点
+2. 按节点名前缀匹配队列范围（hd→ocean, s→normal_1day_new, b→normal_2week）
+3. 统计每个队列 free >= ptile 的节点数
+4. 排序：能放下 → 免费 → 低挂起风险
+5. 无合适队列时自动选择 charge（付费）
+
+## 已自动处理
+
+- KPOINTS 缺失 → 自动 cp IBZKPT → KPOINTS
+- DIPOL → 自动 SSH 读 POSCAR 计算 z_center
+- conN 目录 → 自动排除 0 字节 CONTCAR 和待提交目录
+- JobName → 自动缩短至 ≤9 字符 [A-Za-z0-9_] 格式

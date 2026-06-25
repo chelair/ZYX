@@ -91,7 +91,12 @@ def cmd_workflow(args):
     print("=" * 60)
     projects = _load_projects()
     stopped = _find_stopped(projects)
+    failed = [(p["name"], s["name"]) for p in projects for s in p.get("subs",[]) if s["status"] == "Failed"]
 
+    if failed:
+        print(f"\n  发现 {len(failed)} 个 Failed 任务，自动运行诊断:")
+        for proj, sub in failed:
+            _run("problem_detect.py", proj, sub)
     if stopped:
         print(f"\n  发现 {len(stopped)} 个 Stop 任务可以续算:")
         for proj, sub in stopped:
