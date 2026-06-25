@@ -659,14 +659,10 @@ def main():
             else:
                 print(f"  [X] cp -n {src_name} 失败: {err}")
                 copy_ok = False
-        # Fallback: if KPOINTS missing, try IBZKPT
+        # KPOINTS must be provided by user if missing
         if not check_remote_exists(client, f"{con_path}/KPOINTS", "file"):
-            for src_name in [f"{work_dir}/IBZKPT", f"{remote_base}/IBZKPT", f"{remote_base}/KPOINTS"]:
-                if check_remote_exists(client, src_name, "file"):
-                    ok, err = safe_cp(client, src_name, f"{con_path}/KPOINTS")
-                    if ok:
-                        print("  [OK] IBZKPT -> KPOINTS")
-                    break
+            print("  [!] KPOINTS 不存在，请手动创建（标准格式: 0/G/N1 N2 N3/0 0 0）")
+            print("      Ni x ai > 20 A 规则估算 k 点")
 
 
         if not copy_ok:
