@@ -51,4 +51,4 @@ effort: high
 - 状态判定：bjobs → OUTCAR（详见 `modules/check-report.md` 决策树）
 - 续算目录：同级排列 con1/con2/...，不嵌套（详见 `modules/continue.md`）
 - 队列选择：bhosts 节点空闲优先（详见 `modules/continue.md`）
-- 参考手册：`VASPKIT.md`（固定原子/DIPOL）、`scripts/.input_reference.md`（INCAR 参数）
+- 参考手册：`VASPKIT.md`（固定原子/DIPOL，手动操作）、`scripts/.input_reference.md`（INCAR 参数）

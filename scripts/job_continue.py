@@ -172,6 +172,17 @@ def build_job_name(project_name, sub_dir, con_name):
         name = name.replace("_", "")
         name = name[:9]
     return name
+def classify_fix_type(subtask_name, subtask_dir):
+    """Advisory: does this task need atom fixing?"""
+    name_lower = (subtask_name + " " + subtask_dir).lower()
+    if any(kw in name_lower for kw in ["freq"]):
+        return "frequency", "Fix by Indices (all except adsorbate)"
+    if any(kw in name_lower for kw in ["abs", "oer"]):
+        return "adsorption", "Fix by Heights 50%"
+    if any(kw in name_lower for kw in ["opt", "raw", "slab"]):
+        return "slab", "Fix by Heights 40%"
+    return "unknown", "Check manually"
+
 def check_contcar_integrity(client, remote_dir):
     """CONTCAR 完整性校验 — 比较预期坐标行数和实际行数
 

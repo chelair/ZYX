@@ -13,15 +13,9 @@
 | Completed | ❌ 不需要 |
 | Error | ⚠️ 人工介入 |
 
-## 续算种类
+## 计算类型识别
 
-| 类型 | 固定比例 | 偶极矫正 | VASPKit |
-|------|:---:|:---:|------|
-| slab 优化 | 40% | 否 | 402 Fix by Heights |
-| 吸附 | 50% | 是 | 402 Fix by Heights + DIPOL |
-| 频率 | 按序号 | 否 | 402 Fix by Indices |
-
-判断依据：子任务名/目录前缀（adsorption→吸附, abs→吸附, opt/slab→slab, freq→频率）
+根据 INCAR 中 IBRION 和子任务目录前缀自动判断，无需手动指定。
 
 ## 执行流程
 
@@ -54,9 +48,8 @@ python scripts/job_continue.py <项目名> <子任务名> --yes --queue <队列>
 
 ### Step 3: 手动后续操作
 
-续算文件创建后，需手动执行：
-1. **VASPKit 402 固定原子**：`vaspkit → 4 → 402 → 3`（Fix by Heights）
-2. **DIPOL z 中心**：已自动计算填入 INCAR，无需手动（吸附类型）
+续算文件创建后检查 INCAR（DIPOL 已自动计算填入，吸附类型）。
+固定原子操作请手动运行 VASPKit 402。
 
 ### Step 4: 提交
 
