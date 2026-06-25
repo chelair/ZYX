@@ -16,17 +16,17 @@ HPC_PORT = 22
 
 # ── 常用队列配置 ──
 QUEUES = {
-    "ocean6226R_1day": {"nodes": "hd030-hd048", "suspend_risk": "high",  "paid": False, "desc": "Ocean 队列, 易挂起"},
-    "ocean_530_1day":  {"nodes": "hd001-hd029", "suspend_risk": "high",  "paid": False, "desc": "Ocean 队列, 易挂起"},
-    "normal_1day_new": {"nodes": "s001-s018",   "suspend_risk": "low",   "paid": False, "desc": "Normal 队列, 稳定"},
+    "ocean6226R_1day": {"nodes": "hd029-hd048", "suspend_risk": "high",  "paid": False, "desc": "Ocean 队列, 易挂起"},
+    "ocean_530_1day":  {"nodes": "hd001-hd028", "suspend_risk": "high",  "paid": False, "desc": "Ocean 队列, 易挂起"},
+    "normal_1day_new": {"nodes": "s006-s018",   "suspend_risk": "low",   "paid": False, "desc": "Normal 队列, 稳定"},
     "normal_2week":    {"nodes": "b001-b014",   "suspend_risk": "low",   "paid": False, "desc": "Normal 队列, 长时"},
     "charge":          {"nodes": "s019-s030",   "suspend_risk": "none",  "paid": True,  "desc": "付费队列"},
 }
 
 NODE_GROUPS = [
-    ("ocean6226R_1day", 30, 48, "hd"),
-    ("ocean_530_1day",   1, 29, "hd"),
-    ("normal_1day_new",  1, 18, "s"),
+    ("ocean6226R_1day", 29, 48, "hd"),
+    ("ocean_530_1day",   1, 28, "hd"),
+    ("normal_1day_new",  6, 18, "s"),
     ("charge",          19, 30, "s"),
     ("normal_2week",     1, 14, "b"),
 ]

@@ -32,7 +32,7 @@ from safe_ops import (
     safe_upload_file, check_remote_exists, read_remote_job_info,
 )
 from project_store import load_projects, save_projects, find_project, find_subtask
-from jobs_monitor import recommend_queue
+from jobs_monitor import recommend_queue, QUEUES, cores_per_node, NODE_GROUPS
 
 
 # ═══════════════════════════════════════════════
@@ -150,16 +150,28 @@ def needs_dipole(subtask_name, subtask_dir):
     return any(kw in name_lower for kw in ["吸附", "abs", "oer"])
 
 
-def build_job_name(project_name, sub_dir):
-    """构建作业名: {项目名}_{子目录末段}"""
-    last_seg = sub_dir.rstrip("/").split("/")[-1]
-    return f"{project_name}_{last_seg}"
-
-
-# ═══════════════════════════════════════════════
-#  CONTCAR 完整性校验
-# ═══════════════════════════════════════════════
-
+def build_job_name(project_name, sub_dir, con_name):
+    """Job name <=9 chars, [A-Za-z0-9_] only (bjobs shows last 9)"""
+    import re
+    
+    # Project: extract 2-3 char keyword
+    raw = "".join(c for c in project_name if c.isalnum() or c == "_")
+    short = raw.replace("_", "")[:3]
+    
+    # Sub: last segment, 2-4 chars
+    sub = sub_dir.rstrip("/").split("/")[-1]
+    sub = "".join(c for c in sub if c.isalnum())
+    sub = sub[:4]
+    
+    # Con number
+    m = re.search(r"(\d+)$", con_name)
+    cn = "_c" + m.group() if m else ""
+    
+    name = short + "_" + sub + cn
+    if len(name) > 9:
+        name = name.replace("_", "")
+        name = name[:9]
+    return name
 def check_contcar_integrity(client, remote_dir):
     """CONTCAR 完整性校验 — 比较预期坐标行数和实际行数
 
@@ -244,52 +256,155 @@ def check_wavecar_ready(client, remote_dir):
 # ═══════════════════════════════════════════════
 
 def find_work_dir(client, base_dir):
-    """确定当前工作目录：原始目录或最新续算目录
-
-    Returns:
-      (work_dir, latest_con_num)
-      work_dir: 实际工作的远程路径
-      latest_con_num: int, 0 表示原始目录
+    """Determine current work directory
+    If base_dir itself is conN, look for siblings in parent.
+    Only considers con dirs that have CONTCAR (actually ran).
+    Returns: (work_dir, latest_con_num, parent_dir)
     """
-    cmd = f'ls -d "{base_dir}"/con[0-9]*/ 2>/dev/null | sort -V'
-    stdin, stdout, _ = client.exec_command(cmd)
-    con_dirs = stdout.read().decode().strip().split()
-
-    if con_dirs and con_dirs[0]:
-        latest = con_dirs[-1].rstrip("/")
-        m = re.search(r'con(\d+)$', latest)
-        latest_num = int(m.group(1)) if m else 0
-        return latest, latest_num
+    # If base_dir itself is conN, go up one level
+    if re.search(r"/con\d+$", base_dir):
+        parent = "/".join(base_dir.split("/")[:-1])
     else:
-        return base_dir, 0
-
-
-def find_next_con_number(client, base_dir):
-    """计算下一个续算编号 N = max(con1,con2,...) + 1
-
-    Returns:
-      int N
-    """
-    cmd = f'ls -d "{base_dir}"/con[0-9]*/ 2>/dev/null | sort -V'
+        parent = base_dir
+    cmd = f'ls -d "{parent}"/con[0-9]*/ 2>/dev/null | sort -V'
     stdin, stdout, _ = client.exec_command(cmd)
     con_dirs = stdout.read().decode().strip().split()
-
+    # Filter: only con dirs that actually ran (have CONTCAR)
+    ran_dirs = []
+    for d in con_dirs:
+        d = d.strip()
+        if not d:
+            continue
+        check_cmd = f"test -f {d}/CONTCAR ; echo $?"
+        stdin2, stdout2, _ = client.exec_command(check_cmd)
+        if stdout2.read().decode().strip() == "0":
+            ran_dirs.append(d)
+    if ran_dirs:
+        latest = ran_dirs[-1].rstrip("/")
+        m = re.search(r"con(\d+)$", latest)
+        latest_num = int(m.group(1)) if m else 0
+        return latest, latest_num, parent
+    else:
+        return base_dir, 0, parent
+def find_next_con_number(client, base_dir):
+    """Calculate next con number, returns (n, parent_dir)"""
+    if re.search(r"/con\d+$", base_dir):
+        parent = "/".join(base_dir.split("/")[:-1])
+    else:
+        parent = base_dir
+    cmd = f'ls -d "{parent}"/con[0-9]*/ 2>/dev/null | sort -V'
+    stdin, stdout, _ = client.exec_command(cmd)
+    con_dirs = stdout.read().decode().strip().split()
     max_n = 0
     for d in con_dirs:
         d = d.strip()
         if not d:
             continue
-        m = re.search(r'con(\d+)/?$', d)
+        m = re.search(r"con(\d+)/?$", d)
         if m:
             n = int(m.group(1))
             if n > max_n:
                 max_n = n
-    return max_n + 1
+    return max_n + 1, parent
 
+def _check_bhosts(client, cores, ptile=24):
+    """MONITOR.md P0: bhosts 节点状态检查
+    
+    1. 仅取 STATUS=ok 的节点
+    2. 按 HOST_NAME 匹配队列节点范围
+    3. 统计每个队列中 free >= ptile 的 ok 节点数
+    4. 按优先级排序返回
+    
+    Returns: list of {queue, ok_nodes, free_nodes, can_fit, ...}
+    """
+    # (jobs_monitor imported at module level)
+    
 
-# ═══════════════════════════════════════════════
-#  生成 vasp.lsf 内容
-# ═══════════════════════════════════════════════
+    stdin, stdout, _ = client.exec_command("bhosts 2>/dev/null")
+    raw = stdout.read().decode().strip()
+    if not raw:
+        return []
+    
+    # Parse bhosts: HOST_NAME STATUS JL/U MAX NJOBS RUN ...
+    ok_nodes = {}  # hostname -> free_slots
+    for line in raw.split("\n"):
+        parts = line.split()
+        if len(parts) < 7:
+            continue
+        host, status = parts[0], parts[1]
+        if host.startswith("HOST") or status != "ok":
+            continue
+        try:
+            max_slots = int(parts[3])
+            njobs = int(parts[4])
+            free = max_slots - njobs
+            if free > 0:
+                ok_nodes[host] = free
+        except ValueError:
+            continue
+    
+    if not ok_nodes:
+        return [{"queue": "NONE", "ok_nodes": 0, "free_24": 0, "can_fit": False}]
+    
+    # Map hostname -> queue using node ranges
+    def _host_in_range(host, prefix, lo, hi):
+        """Check if host matches prefixNN where NN in [lo, hi]"""
+        if not host.startswith(prefix):
+            return False
+        try:
+            num = int(host[len(prefix):])
+            return lo <= num <= hi
+        except ValueError:
+            return False
+    
+    def _host_to_queue(host):
+        for qname, start, end, prefix in NODE_GROUPS:
+            if _host_in_range(host, prefix, start, end):
+                return qname
+        return None
+    
+    # Aggregate by queue
+    queue_stats = {}
+    for host, free in ok_nodes.items():
+        q = _host_to_queue(host)
+        if q is None:
+            continue
+        if q not in queue_stats:
+            queue_stats[q] = {"total_ok": 0, "free_24": 0, "free_cores": 0, "nodes": []}
+        queue_stats[q]["total_ok"] += 1
+        queue_stats[q]["free_cores"] += free
+        if free >= ptile:
+            queue_stats[q]["free_24"] += 1
+            queue_stats[q]["nodes"].append(f"{host}({free})")
+    
+    # Build prioritized result
+    result = []
+    for qname, stats in queue_stats.items():
+        qinfo = QUEUES.get(qname, {})
+        nodes_needed = (cores + ptile - 1) // ptile
+        can_fit = stats["free_24"] >= nodes_needed
+        result.append({
+            "queue": qname,
+            "ok_nodes": stats["total_ok"],
+            "free_24": stats["free_24"],
+            "free_cores": stats["free_cores"],
+            "can_fit": can_fit,
+            "nodes_needed": nodes_needed,
+            "suspend_risk": qinfo.get("suspend_risk", "?"),
+            "paid": qinfo.get("paid", False),
+            "sample_nodes": stats["nodes"][:4],
+        })
+    
+    # Sort: can_fit first, then free (no cost), then low suspend risk
+    risk_order = {"none": 0, "low": 1, "high": 2, "?": 3}
+    result.sort(key=lambda x: (
+        not x["can_fit"],
+        1 if x["paid"] else 0,
+        risk_order.get(x["suspend_risk"], 3),
+        -x["free_24"],
+    ))
+    return result
+
 
 def generate_vasp_lsf(job_name, queue, cores=48, ptile=24, walltime="24:00"):
     """生成 vasp.lsf 内容
@@ -394,6 +509,7 @@ def main():
     parser.add_argument("--timeout", type=int, default=15, help="连接超时")
     parser.add_argument("--cores", type=int, default=None, help="指定核数（默认自动估算）")
     parser.add_argument("--queue", default=None, help="指定队列（默认自动推荐）")
+    parser.add_argument("--yes", "-y", action="store_true", help="跳过确认直接提交")
     parser.add_argument("--no-submit", action="store_true", help="仅生成文件，不提交")
     args = parser.parse_args()
 
@@ -428,7 +544,7 @@ def main():
             return
 
         # ── 4. 确定工作目录 ──
-        work_dir, cur_con = find_work_dir(client, remote_base)
+        work_dir, cur_con, parent_dir = find_work_dir(client, remote_base)
         if cur_con > 0:
             print(f"[现状] 已有续算目录 con{cur_con}/，基于此目录继续")
             print(f"       {work_dir}")
@@ -460,9 +576,9 @@ def main():
         print("-" * 60)
         print("  [2/10] 计算续算编号")
         print("-" * 60)
-        n = find_next_con_number(client, remote_base)
+        n, con_parent = find_next_con_number(client, remote_base)
         con_name = f"con{n}"
-        con_path = f"{remote_base}/{con_name}"
+        con_path = f"{con_parent}/{con_name}"
         print(f"       con{n}/")
 
         # ── 7. 创建续算目录 ──
@@ -584,8 +700,25 @@ def main():
                     print("  [!] DIPOL z 中心自动计算失败，请手动填入")
         print("-" * 60)
 
+
         is_neb = sub_dir.startswith("neb/")
         cores = args.cores or estimate_cores(atoms, is_neb=is_neb)
+        # ── P0: bhosts 检查节点(仅 STATUS=ok,按队列映射) ──
+        bhosts_data = _check_bhosts(client, cores)
+        if bhosts_data:
+            print("  bhosts (ok nodes free ≥ ptile):")
+            for bh in bhosts_data:
+                fit = "✓" if bh["can_fit"] else "✗"
+                paid = "$" if bh["paid"] else " "
+                nodes_str = ", ".join(bh["sample_nodes"]) if bh["sample_nodes"] else "-"
+                print(f"    {fit} {paid} {bh["queue"]:<20} ok={bh["ok_nodes"]} free24={bh["free_24"]} need={bh["nodes_needed"]}  [{nodes_str}]")
+            # Auto-select first queue that fits
+            fitting = [bh for bh in bhosts_data if bh["can_fit"]]
+        else:
+            print("  bhosts: 无法获取节点状态")
+            fitting = []
+
+
 
         recs = recommend_queue(cores=cores, urgent=False, special_neb=is_neb)
 
@@ -617,7 +750,7 @@ def main():
         print("  [10/10] 生成提交文件")
         print("-" * 60)
 
-        job_name = build_job_name(args.project, sub_dir)
+        job_name = build_job_name(args.project, sub_dir, con_name)
         lsf_content = generate_vasp_lsf(job_name, selected_queue, cores)
         job_info_content = generate_job_info(
             args.project, sub_dir, f"{sub_dir}/{con_name}",
@@ -691,14 +824,17 @@ def main():
                 print()
                 print("  [--no-submit] 跳过提交，仅生成文件")
                 print(f"  需手动提交: bsub < {con_path}/vasp.lsf")
+            elif args.yes:
+                print()
+                print("  [--yes] 自动确认，提交作业")
             else:
                 print()
-                try:
-                    confirm = input("  确认提交作业? (y/N): ").strip().lower()
-                except (EOFError, KeyboardInterrupt):
-                    confirm = "n"
+                print("  [跳过] 未确认提交（加 --yes 可自动提交）")
+                print(f"  需手动提交: bsub < {con_path}/vasp.lsf")
+                mgr.close_all()
+                return
 
-                if confirm == "y":
+                if args.yes:
                     print()
                     print("-" * 60)
                     print("  提交作业")

@@ -39,7 +39,8 @@ def main():
             check_args.append(args.project)
         result = subprocess.run(check_args)
         if result.returncode != 0:
-            print(f"  [!] \u68c0\u67e5\u5f02\u5e38\u9000\u51fa (\u4ee3\u7801 {result.returncode})")
+            print("[X] Check failed (code=" + str(result.returncode) + ")")
+            sys.exit(result.returncode)
     else:
         print("  [\u8df3\u8fc7\u68c0\u67e5] \u76f4\u63a5\u4ece\u6570\u636e\u5e93\u751f\u6210\u62a5\u544a")
 
