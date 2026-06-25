@@ -150,6 +150,31 @@ def needs_dipole(subtask_name, subtask_dir):
     return any(kw in name_lower for kw in ["吸附", "abs", "oer"])
 
 
+
+def _generate_kpoints(client, poscar_path):
+    """Read POSCAR lattice, estimate k-points (Ni x ai > 20 rule)"""
+    import math
+    try:
+        stdin, stdout, _ = client.exec_command(f"cat {poscar_path}")
+        lines = stdout.read().decode().split("\n")
+        # Lattice vectors are lines 3-5 (after title + scale)
+        vecs = []
+        for i in [2, 3, 4]:
+            if i < len(lines):
+                parts = lines[i].split()
+                if len(parts) >= 3:
+                    a = math.sqrt(sum(float(x)**2 for x in parts[:3]))
+                    vecs.append(a)
+        if len(vecs) == 3:
+            n1 = max(1, math.ceil(20.0 / vecs[0]))
+            n2 = max(1, math.ceil(20.0 / vecs[1]))
+            n3 = max(1, math.ceil(20.0 / vecs[2]))
+            return f"Automatic mesh\n0\nGamma\n{n1} {n2} {n3}\n0 0 0\n", (n1, n2, n3)
+    except Exception:
+        pass
+    return None, None
+
+
 def build_job_name(project_name, sub_dir, con_name):
     """Job name <=9 chars, [A-Za-z0-9_] only (bjobs shows last 9)"""
     import re
@@ -659,10 +684,14 @@ def main():
             else:
                 print(f"  [X] cp -n {src_name} 失败: {err}")
                 copy_ok = False
-        # KPOINTS must be provided by user if missing
+        # Auto-generate KPOINTS if missing (Ni x ai > 20 rule)
         if not check_remote_exists(client, f"{con_path}/KPOINTS", "file"):
-            print("  [!] KPOINTS 不存在，请手动创建（标准格式: 0/G/N1 N2 N3/0 0 0）")
-            print("      Ni x ai > 20 A 规则估算 k 点")
+            kp_content, kp_nums = _generate_kpoints(client, f"{con_path}/POSCAR")
+            if kp_content:
+                safe_write_text(client, f"{con_path}/KPOINTS", kp_content)
+                print(f"  [OK] KPOINTS auto-generated: {kp_nums[0]} {kp_nums[1]} {kp_nums[2]} (auto mesh, Gamma)")
+            else:
+                print("  [!] KPOINTS 缺失且无法自动生成，请手动创建")
 
 
         if not copy_ok:
