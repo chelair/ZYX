@@ -18,7 +18,9 @@ import sys
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
-OUTPUT_DIR = Path("D:/POSCAR/HuaSuan/check")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from config import DAILY_CHECK_DIR, LOCAL_BASE
+RESULTS_FILE = DAILY_CHECK_DIR / ".check_results.json"
 
 
 def _run(script, *args, **kwargs):
@@ -60,7 +62,7 @@ def cmd_check(args):
 
 def cmd_report(args):
     """生成 PPT 报告"""
-    results_file = OUTPUT_DIR / "DailyCheck" / ".check_results.json"
+    results_file = RESULTS_FILE
     params = ["--from-db", "--from-results", str(results_file), "--theme", args.theme]
     if args.no_struct:
         params.append("--no-struct")
@@ -120,7 +122,7 @@ def cmd_workflow(args):
     print("\n" + "=" * 60)
     print("  ZYX Workflow: Step 3/3 — 生成报告")
     print("=" * 60)
-    results_file = OUTPUT_DIR / "DailyCheck" / ".check_results.json"
+    results_file = RESULTS_FILE
     params = ["--from-db", "--from-results", str(results_file), "--theme", args.theme]
     if args.no_struct:
         params.append("--no-struct")
