@@ -102,17 +102,6 @@ def remote_modify_incar_line(client, path, key, new_value):
     return remote_write_text(client, path, "\n".join(new_lines))
 
 
-def classify_fix_type(subtask_name, subtask_dir):
-    """根据子任务名/目录判断固定类型和比例"""
-    name_lower = (subtask_name + " " + subtask_dir).lower()
-    if any(kw in name_lower for kw in ["频率", "freq", "振动", "frequency"]):
-        return "frequency", None
-    if any(kw in name_lower for kw in ["吸附", "abs", "oer", "反应"]):
-        return "adsorption", 0.50
-    if any(kw in name_lower for kw in ["结构优化", "opt", "raw", "slab"]):
-        return "slab", 0.40
-    return "slab", 0.40  # 默认 slab
-
 
 
 def _calc_dipol_center(client, poscar_path):
@@ -858,7 +847,6 @@ def main():
         print(f"  队列:         {selected_queue}")
         print(f"  核数:         {cores}")
         print(f"  原子数:       {atoms}")
-        print(f"  固定类型:     {fix_type}" + (f" ({fix_ratio*100:.0f}%)" if fix_ratio else ""))
         print(f"  偶极矫正:     {'需要' if has_dipole else '不需要'}")
 
         if args.dry_run:
