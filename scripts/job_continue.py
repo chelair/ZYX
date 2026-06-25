@@ -386,9 +386,9 @@ def _check_bhosts(client, cores, ptile=24):
         if q is None:
             continue
         if q not in queue_stats:
-            queue_stats[q] = {"total_ok": 0, "free_24": 0, "free_cores": 0, "nodes": []}
+            queue_stats[q] = {"total_ok": 0, "free_24": 0, "free_cores": 0, "nodes": [], "_free_list": []}
         queue_stats[q]["total_ok"] += 1
-        queue_stats[q]["free_cores"] += free
+        queue_stats[q]["free_cores"] += free; queue_stats[q]["_free_list"].append(free)
         if free >= ptile:
             queue_stats[q]["free_24"] += 1
             queue_stats[q]["nodes"].append(f"{host}({free})")
@@ -397,8 +397,27 @@ def _check_bhosts(client, cores, ptile=24):
     result = []
     for qname, stats in queue_stats.items():
         qinfo = QUEUES.get(qname, {})
-        nodes_needed = (cores + ptile - 1) // ptile
-        can_fit = stats["free_24"] >= nodes_needed
+        # Balanced fitting: prefer fewer nodes, even distribution
+        best_config = None
+        for node_count in [1, 2, 3, 4]:
+            if cores > stats["free_cores"]:
+                break
+            per_node = cores // node_count
+            if per_node * node_count < cores:
+                per_node = (cores + node_count - 1) // node_count
+            if per_node > ptile:
+                continue
+            fitting_nodes = sum(1 for n in stats.get("_free_list", []) if n >= per_node)
+            if fitting_nodes >= node_count:
+                best_config = (node_count, per_node)
+                break
+        
+        if best_config:
+            nodes_needed, per_node = best_config
+            can_fit = True
+        else:
+            nodes_needed = (cores + ptile - 1) // ptile
+            can_fit = stats["free_cores"] >= cores
         result.append({
             "queue": qname,
             "ok_nodes": stats["total_ok"],
@@ -406,6 +425,7 @@ def _check_bhosts(client, cores, ptile=24):
             "free_cores": stats["free_cores"],
             "can_fit": can_fit,
             "nodes_needed": nodes_needed,
+            "per_node": per_node if best_config else None,
             "suspend_risk": qinfo.get("suspend_risk", "?"),
             "paid": qinfo.get("paid", False),
             "sample_nodes": stats["nodes"][:4],
